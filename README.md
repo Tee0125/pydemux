@@ -22,9 +22,13 @@ conda install -c tee pydemux
 from PyDemux import Video
 
 v = Video.open('video.mov')
-if v is not None:
-    for i in rage(0, 10):
-        im = v.get_frame()
-        im.show()
+
+for i in rage(0, 10):
+    im = v.get_frame()
+
+    if im is None:
+        break
+
+    im.show()
 ```
 
