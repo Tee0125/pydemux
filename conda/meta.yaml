@@ -1,0 +1,21 @@
+package:
+  name: pydemux
+  version: "v0.0"
+
+source:
+  git_tag: v0.0
+  git_url: https://github.com/Tee0125/pydemux.git
+
+requirements:
+  build:
+    - python
+    - ffmpeg
+  run:
+    - python
+    - ffmpeg
+    - pillow
+
+about:
+  home: http://github.com/Tee0125/pydemux
+  license: LGPL
+
