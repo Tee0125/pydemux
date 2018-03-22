@@ -20,28 +20,8 @@
  * THE SOFTWARE.
  */
 
-#include <libavutil/imgutils.h>
-#include <libavutil/samplefmt.h>
-#include <libavutil/timestamp.h>
-#include <libavformat/avformat.h>
-
-typedef struct
-{
-    AVFormatContext* fmt_ctx;
-
-    AVCodecContext* vdec_ctx;
-    AVCodecContext* adec_ctx;
-
-    AVFrame* frame;
-    AVPacket pkt;
-
-    int video_stream_idx;
-    int audio_stream_idx;
-
-    int has_video_stream;
-    int has_audio_stream;
-
-} demux_ctx_t;
+#include "_demux.h"
+#include "_yuv2rgb.h"
 
 static int open_codec_ctx(int *stream_idx,
                           AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx,
@@ -160,10 +140,13 @@ demux_ctx_t* demux_open(char* filename)
     return ctx;
 }
 
-AVFrame* demux_get_frame(demux_ctx_t* ctx)
+uint8_t* demux_get_frame(demux_ctx_t* ctx)
 {
     AVFrame* frame = NULL;
     AVPacket* pkt = &ctx->pkt;
+
+    int width;
+    int height;
 
     int ret;
 
@@ -188,51 +171,43 @@ AVFrame* demux_get_frame(demux_ctx_t* ctx)
         av_packet_unref(&orig_pkt);
 
         if (frame)
-            return frame;
+            break;
     }
 
-    /* flush cached frames */
-    pkt->data = NULL;
-    pkt->size = 0;
-
-    decode_packet(ctx, &frame, pkt);
-
-    return frame;
-
-    /*
-    // [FIXME]
-    // allocate image where the decoded image will be put
-    int w, h;
-    enum AVPixelFormat pix_fmt;
-
-    uint8_t *video_dst_data[4] = {NULL};
-
-    int linesize[4];
-    int bufsize;
-
-    w = dec_ctx->width;
-    h = dec_ctx->height;
-    pix_fmt = vdec_ctx->pix_fmt;
-
-    ret = av_image_alloc(video_dst_data, linesize, w, h, pix_fmt, 1);
-
-    if (ret < 0)
+    if (!frame)
     {
-        fprintf(stderr, "Could not allocate raw video buffer\n");
-        goto end;
+        /* flush cached frames */
+        pkt->data = NULL;
+        pkt->size = 0;
+
+        decode_packet(ctx, &frame, pkt);
     }
-    video_dst_bufsize = ret;
 
-            // copy decoded frame to destination buffer:
-            // this is required since rawvideo expects non aligned data
-            av_image_copy(video_dst_data, video_dst_linesize,
-                          (const uint8_t **)(frame->data), frame->linesize,
-                          pix_fmt, width, height);
+    if (frame)
+    {
+        width  = ctx->vdec_ctx->width;
+        height = ctx->vdec_ctx->height;
 
-            // write to rawvideo file
-            fwrite(video_dst_data[0], 1, video_dst_bufsize, video_dst_file);
+        return yuv420_to_rgb24(frame, width, height);
+    }
+    else
+        return NULL;
 
-    */
+}
+
+int demux_get_width(demux_ctx_t* ctx)
+{
+    return ctx->vdec_ctx->width;
+}
+
+int demux_get_height(demux_ctx_t* ctx)
+{
+    return ctx->vdec_ctx->height;
+}
+
+void demux_release_frame(demux_ctx_t* ctx, uint8_t* frame)
+{
+    free(frame);
 }
 
 void demux_close(demux_ctx_t* ctx)
@@ -267,6 +242,8 @@ static int decode_video_packet(demux_ctx_t* ctx, AVFrame** frame, AVPacket* pkt)
 
     if (got_frame)
         *frame = ctx->frame;
+    else
+        *frame = NULL;
 
     return pkt->size;
 }
@@ -394,12 +371,11 @@ static int open_codec_ctx(int *stream_idx,
     return 0;
 }
 
-#define TEST
 #ifdef TEST
 int main(int argc, char** argv)
 {
     demux_ctx_t* ctx;
-    AVFrame* frame;
+    uint8_t* frame;
 
     int i;
 
@@ -416,8 +392,18 @@ int main(int argc, char** argv)
         frame = demux_get_frame(ctx);
         if (frame == NULL)
             break;
-        else
+        else {
             fprintf(stderr, "%dth frame found\n", i);
+
+            fprintf(stderr, "w: %d, h: %d, dst: %08x\n", ctx->vdec_ctx->width, ctx->vdec_ctx->height, frame);
+
+            char buf[255];
+            sprintf(buf, "a%d.rgb", "wb", i);
+            FILE* fp = fopen(buf, "wb");
+            printf("w:%d, h:%d\n", ctx->vdec_ctx->width, ctx->vdec_ctx->height);
+            fwrite(frame, 1, ctx->vdec_ctx->width*ctx->vdec_ctx->height*3, fp);
+            fclose(fp);
+        }
     }
     demux_close(ctx);
 
