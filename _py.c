@@ -70,7 +70,11 @@ static PyObject* get_frame_wrapper(PyObject* self, PyObject* args)
     if (!PyArg_ParseTuple(args, "l", &ctx))
         return NULL;
 
+    // demux frame
     frame = demux_get_frame(ctx);
+
+    if (!frame)
+        Py_RETURN_NONE;
 
     // convert RGB array to python string
     width = demux_get_width(ctx);

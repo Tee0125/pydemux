@@ -6,12 +6,14 @@ class Demux(object):
         self.ctx = _demux.open(filename)
 
     def get_frame(self):
-        frame, w, h = _demux.get_frame(self.ctx)
+        result = _demux.get_frame(self.ctx)
 
-        if frame is not None:
-            return Image.frombytes("RGB", (w, h), frame)
-        else:
-            return None
+        if result is None:
+            return none
+
+        frame, w, h, = result
+
+        return Image.frombytes("RGB", (w, h), frame)
 
     def __del__(self):
         if self.ctx is not None:
