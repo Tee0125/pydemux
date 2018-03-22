@@ -2,10 +2,18 @@
 
 ffmpeg wrapper to decode frames from video sequence
 
-# Build
+# Install 
+
+From source:
 
 ```
 python setup.py install
+```
+
+From anaconda cloud:
+
+```
+conda install -c tee pydemux
 ```
 
 # Usage
