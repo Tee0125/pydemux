@@ -23,7 +23,7 @@ from PyDemux import Video
 
 v = Video.open('video.mov')
 
-for i in rage(0, 10):
+for i in range(0, 10):
     im = v.get_frame()
 
     if im is None:
