@@ -9,7 +9,7 @@ class Demux(object):
         result = _demux.get_frame(self.ctx)
 
         if result is None:
-            return none
+            return None
 
         frame, w, h, = result
 
