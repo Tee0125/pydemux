@@ -15,6 +15,11 @@ class Demux(object):
 
         return Image.frombytes("RGB", (w, h), frame)
 
+
+    def seek(self, ms, stream_type=0, seek_type=0):
+        return _demux.seek(self.ctx, ms, stream_type, seek_type);
+
+
     def __del__(self):
         if self.ctx is not None:
             _demux.close(self.ctx)

@@ -135,7 +135,7 @@ demux_ctx_t* demux_open(char* filename)
     ctx->pkt.size = 0;
 
     /* dump input information to stderr */
-    //av_dump_format(fmt_ctx, 0, filename, 0);
+    av_dump_format(fmt_ctx, 0, filename, 0);
 
     return ctx;
 }
@@ -188,6 +188,17 @@ uint8_t* demux_get_frame(demux_ctx_t* ctx)
         width  = ctx->vdec_ctx->width;
         height = ctx->vdec_ctx->height;
 
+        // save pts time
+        AVRational time_base = ctx->fmt_ctx->streams[ctx->video_stream_idx]->time_base;
+        int frame_pts_in_ms = frame->pts * av_q2d(time_base) * 1000;
+        printf("Frame in %d ms\n", frame_pts_in_ms);
+        if(frame_pts_in_ms + 250 < ctx->cur_video_pts_in_ms) {
+            printf("Skip old frames\n");
+            av_frame_unref(frame);
+            return NULL;
+        }
+
+        ctx->cur_video_pts_in_ms = frame_pts_in_ms;
         return yuv420_to_rgb24(frame, width, height);
     }
     else
@@ -231,6 +242,8 @@ static int decode_video_packet(demux_ctx_t* ctx, AVFrame** frame, AVPacket* pkt)
 {
     int got_frame;
     int ret;
+
+    printf("Decode Pts: %lld\n", pkt->pts);
 
     /* decode video frame */
     ret = avcodec_decode_video2(ctx->vdec_ctx, ctx->frame, &got_frame, pkt);
@@ -370,6 +383,46 @@ static int open_codec_ctx(int *stream_idx,
     }
     return 0;
 }
+
+int demux_move(demux_ctx_t* ctx, int stream_type, int delta_ms) {
+    int target_point_in_ms = ctx->cur_video_pts_in_ms + delta_ms;
+    int flag = AVSEEK_FLAG_BACKWARD;
+    if(delta_ms) {
+        flag = AVSEEK_FLAG_ANY;
+    }
+    return demux_goto(ctx, stream_type, target_point_in_ms, flag);
+}
+
+int demux_goto(demux_ctx_t* ctx, int stream_type, int ms, int flag) {
+    int stream_idx = -1;
+    if(stream_type == 0 && ctx->has_video_stream) {
+        stream_idx = ctx->video_stream_idx;
+    } else if(stream_type == 1 && ctx->has_audio_stream) {
+        stream_idx = ctx->audio_stream_idx;
+    }
+
+    if(stream_idx < 0) {
+        printf("Stream Not Found\n");
+        return -1;
+    }
+
+    if(!flag) {
+      flag = AVSEEK_FLAG_BACKWARD;
+    }
+
+    AVRational time_base = ctx->fmt_ctx->streams[stream_idx]->time_base;
+    int64_t seek_timestampe = ms * 0.001 / av_q2d(time_base);
+    printf("Seek to %d ms, timestampe is %lld\n", ms, seek_timestampe);
+
+    int ret = av_seek_frame(ctx->fmt_ctx, stream_idx, seek_timestampe, flag);
+
+    if(ret >= 0) {
+        ctx->cur_video_pts_in_ms = ms;
+    }
+
+    return ret;
+}
+
 
 #ifdef TEST
 int main(int argc, char** argv)
