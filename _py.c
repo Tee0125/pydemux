@@ -8,12 +8,14 @@ static PyObject* open_wrapper(PyObject* self, PyObject* arg);
 static PyObject* get_frame_wrapper(PyObject* self, PyObject* arg);
 static PyObject* release_frame_wrapper(PyObject* self, PyObject* arg);
 static PyObject* close_wrapper(PyObject* self, PyObject* arg);
+static PyObject* seek_wrapper(PyObject* self, PyObject* arg);
 
 static PyMethodDef methods[] =
 {
     {"open", open_wrapper, METH_VARARGS, "open"},
     {"get_frame", get_frame_wrapper, METH_VARARGS, "get_frame"},
     {"close", close_wrapper, METH_VARARGS, "close"},
+    {"seek", seek_wrapper, METH_VARARGS, "seek: ms stream_type seek_type"},
     {NULL, NULL, 0, NULL}
 };
 
@@ -99,4 +101,26 @@ static PyObject* close_wrapper(PyObject* self, PyObject* args)
     demux_close(ctx);
 
     Py_RETURN_NONE;
+}
+
+static PyObject* seek_wrapper(PyObject* self, PyObject* args) {
+    PyObject* ret;
+
+    demux_ctx_t* ctx = NULL;
+    int ms = 0;
+    int stream_type = 0; // 0: video 1: audio
+    int seek_type = 0; // 0: goto 1: move
+
+    if (!PyArg_ParseTuple(args, "li|ii", &ctx, &ms, &stream_type, &seek_type))
+        return NULL;
+
+    int error;
+    if(seek_type == 0) {
+        error = demux_goto(ctx, stream_type, ms, -1);
+    } else {
+        error = demux_move(ctx, stream_type, ms);
+    }
+
+    ret = Py_BuildValue("i", error);
+    return ret;
 }
